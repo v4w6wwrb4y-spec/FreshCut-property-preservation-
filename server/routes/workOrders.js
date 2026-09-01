@@ -8,7 +8,9 @@ router.use(authRequired);
 // List work orders (employees see only their own)
 router.get("/", (req, res) => {
   let sql = `
-    SELECT wo.*, u.name AS assigned_name
+    SELECT wo.*, u.name AS assigned_name,
+      (SELECT COUNT(*) FROM tasks t WHERE t.work_order_id = wo.id) AS task_count,
+      (SELECT COUNT(*) FROM tasks t WHERE t.work_order_id = wo.id AND t.completed = 1) AS tasks_done
     FROM work_orders wo
     LEFT JOIN users u ON wo.assigned_to = u.id
   `;

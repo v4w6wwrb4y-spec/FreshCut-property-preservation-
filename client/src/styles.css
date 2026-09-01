@@ -271,6 +271,29 @@ body {
 }
 .wo-date { font-size: .75rem; }
 
+/* Mini progress bar on dashboard cards */
+.wo-card-progress { margin-top: .75rem; }
+.wo-progress-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: .75rem;
+  color: var(--text-muted);
+  margin-bottom: .3rem;
+}
+.wo-progress-pct { font-weight: 600; color: var(--green); }
+.wo-progress-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.wo-progress-fill {
+  height: 100%;
+  background: var(--green);
+  border-radius: 3px;
+  transition: width .3s ease;
+}
+
 .empty-state {
   text-align: center;
   padding: 3rem 1rem;

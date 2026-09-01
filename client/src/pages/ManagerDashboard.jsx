@@ -66,19 +66,33 @@ export default function ManagerDashboard() {
           </div>
         ) : (
           <div className="wo-list">
-            {filtered.map((wo) => (
-              <Link to={`/manager/work-orders/${wo.id}`} key={wo.id} className="wo-card">
-                <div className="wo-card-top">
-                  <h3>{wo.title}</h3>
-                  <Badge status={wo.status} />
-                </div>
-                <p className="wo-address">📍 {wo.property_address}</p>
-                <div className="wo-card-bottom">
-                  <span>{wo.assigned_name ? `👷 ${wo.assigned_name}` : "Unassigned"}</span>
-                  <span className="wo-date">{new Date(wo.created_at).toLocaleDateString()}</span>
-                </div>
-              </Link>
-            ))}
+            {filtered.map((wo) => {
+              const done = wo.tasks_done || 0;
+              const total = wo.task_count || 0;
+              const pct = total ? Math.round((done / total) * 100) : 0;
+              return (
+                <Link to={`/manager/work-orders/${wo.id}`} key={wo.id} className="wo-card">
+                  <div className="wo-card-top">
+                    <h3>{wo.title}</h3>
+                    <Badge status={wo.status} />
+                  </div>
+                  <p className="wo-address">📍 {wo.property_address}</p>
+                  <div className="wo-card-progress">
+                    <div className="wo-progress-row">
+                      <span>{done} of {total} tasks</span>
+                      <span className="wo-progress-pct">{pct}%</span>
+                    </div>
+                    <div className="wo-progress-bar">
+                      <div className="wo-progress-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                  <div className="wo-card-bottom">
+                    <span>{wo.assigned_name ? `👷 ${wo.assigned_name}` : "Unassigned"}</span>
+                    <span className="wo-date">{new Date(wo.created_at).toLocaleDateString()}</span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
