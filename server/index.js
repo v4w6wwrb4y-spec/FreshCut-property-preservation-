@@ -6,6 +6,7 @@ import authRoutes from "./routes/auth.js";
 import workOrderRoutes from "./routes/workOrders.js";
 import taskRoutes from "./routes/tasks.js";
 import photoRoutes from "./routes/photos.js";
+import sheetRoutes from "./routes/sheets.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 mkdirSync(join(__dirname, "uploads"), { recursive: true });

@@ -18,6 +18,8 @@ export default function ManagerDashboard() {
   const [workOrders, setWorkOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState(null);
 
   useEffect(() => {
     api.get("/work-orders").then((data) => {
@@ -25,6 +27,25 @@ export default function ManagerDashboard() {
       setLoading(false);
     });
   }, []);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const result = await api.post("/sheets/sync");
+      if (result.imported > 0) {
+        setSyncMsg({ type: "success", text: `Imported ${result.imported} work order${result.imported !== 1 ? "s" : ""}${result.skipped ? `, skipped ${result.skipped} duplicate${result.skipped !== 1 ? "s" : ""}` : ""}.` });
+        const data = await api.get("/work-orders");
+        setWorkOrders(data.workOrders);
+      } else {
+        setSyncMsg({ type: "success", text: `No new work orders to import (${result.skipped} already exist).` });
+      }
+    } catch (err) {
+      setSyncMsg({ type: "error", text: err.message });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const filtered = filter === "all" ? workOrders : workOrders.filter((w) => w.status === filter);
   const stats = {
