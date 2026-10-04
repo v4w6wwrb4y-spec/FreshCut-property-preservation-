@@ -20,7 +20,8 @@
 ## Verification
 - `curl -fsS http://localhost:3000/` — should return the Vite HTML shell.
 - `curl -fsS -H 'Host: external-preview.example.com' http://localhost:3000/` — external host check.
-- `curl -fsS http://localhost:8001/api/auth/me` — API health (returns 401 without token, proves it's running).
+- `curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/auth/me` — API health through the frontend proxy (expected 401 without a token). Port 8001 is internal to Compose, not exposed on the host.
+- `curl -fsS http://localhost:3000/src/main.jsx` — confirms the preview serves live source rather than a production bundle.
 
 ## Notes
 - The old static `Index.html` was removed; the app is now a full React SPA.
