@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../api.js";
 import Layout from "../components/Layout.jsx";
+import PhotoTimeline from "../components/PhotoTimeline.jsx";
 
 export default function EmployeeTaskList() {
   const { id } = useParams();
@@ -92,6 +93,8 @@ export default function EmployeeTaskList() {
 
         {error && <div className="alert alert-error">{error}</div>}
         {success && <div className="alert alert-success">{success}</div>}
+
+        <PhotoTimeline key={id} photos={photos} tasks={tasks} />
 
         <div className="task-list-section">
           {tasks.map((task, i) => {

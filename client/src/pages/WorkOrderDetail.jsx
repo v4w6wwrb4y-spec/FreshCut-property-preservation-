@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../api.js";
 import Layout from "../components/Layout.jsx";
+import PhotoTimeline from "../components/PhotoTimeline.jsx";
 
 const STATUS_META = {
   pending: { cls: "badge-pending", label: "Pending" },
@@ -73,6 +74,8 @@ export default function WorkOrderDetail() {
             <p>{workOrder.description}</p>
           </div>
         )}
+
+        <PhotoTimeline key={id} photos={photos} tasks={tasks} />
 
         <div className="task-list-section">
           <h3>Tasks ({completedCount}/{tasks.length} complete)</h3>
