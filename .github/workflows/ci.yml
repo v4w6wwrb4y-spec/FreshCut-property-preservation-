@@ -16,7 +16,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to a full commit SHA: this repository requires it for all actions.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Prepare compose env file
         # docker-compose.base44.yml reads platform-delivered secrets from
