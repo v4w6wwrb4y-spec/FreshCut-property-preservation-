@@ -70,6 +70,132 @@ Password for all accounts: `password123`
 | Employee | `mike@freshcut.com` |
 | Employee | `lisa@freshcut.com` |
 
+## Authentication (JWT)
+
+The API is stateless: every protected request must carry a signed JWT. There are no
+cookies and no server-side sessions, so the client is responsible for holding the
+token and attaching it to each call.
+
+### 1. Obtain a token
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{ "email": "manager@freshcut.com", "password": "password123" }
+```
+
+A successful login (`200`) returns the token and the user record:
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…",
+  "user": { "id": 1, "name": "Dana Manager", "email": "manager@freshcut.com", "role": "manager" }
+}
+```
+
+Missing fields return `400`; wrong credentials return `401 { "error": "Invalid email or
+password" }`. Passwords are compared with `bcryptjs` against `users.password_hash` — the
+API never returns or logs a password hash.
+
+### 2. What is inside the token
+
+`server/middleware/auth.js` signs `{ id, role, name }` with `JWT_SECRET` (HS256) and a
+**7-day expiry**:
+
+```js
+jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: "7d" });
+```
+
+`authRequired` verifies the signature and expiry on every protected route and exposes the
+payload as `req.user`. The route then decides what that role may do — e.g. employees only
+see work orders assigned to them, and manager-only actions return `403`.
+
+`JWT_SECRET` must be the same for every API instance and must be set in production
+(`.env.example` includes a generator command). Changing it invalidates all issued tokens.
+If it is unset, the API falls back to a development default — never rely on that outside
+local development.
+
+### 3. Where the client stores the token
+
+The React app keeps the raw token string in **`localStorage` under the key `token`**
+(`client/src/context/AuthContext.jsx`):
+
+- `login()` — after `POST /api/auth/login`, calls `localStorage.setItem("token", data.token)`
+  and puts the user in context.
+- On app load — if a token exists, `GET /api/auth/me` is called to re-validate it. A failure
+  removes the token, so an expired or forged token can't leave the UI in a half-signed-in
+  state.
+- `logout()` — `localStorage.removeItem("token")` and clears the user.
+
+Because the token is readable by JavaScript, it is exposed if the page suffers an XSS bug.
+Do not add third-party scripts casually; see `SECURITY.md` for the current stance and
+limitations (no refresh tokens, no revocation before the 7-day expiry).
+
+### 4. Send it on protected routes
+
+Add the header to every API call that is not login:
+
+```http
+GET /api/work-orders
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…
+```
+
+In the app, `client/src/api.js` does this centrally — `get`, `post`, `patch` and `delete`
+read the token from `localStorage` and set `Authorization` when present, so page code
+never touches the token:
+
+```js
+const token = localStorage.getItem("token");
+fetch(`/api${path}`, {
+  ...options,
+  headers: {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers,
+  },
+});
+```
+
+`api.upload()` does the same for `multipart/form-data` photo uploads, but sets **only**
+the `Authorization` header — the browser must add `Content-Type` itself so the multipart
+boundary is correct.
+
+From the command line:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"manager@freshcut.com","password":"password123"}' \
+  | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+
+curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/work-orders
+```
+
+### 5. Public vs. protected endpoints
+
+| Endpoint | Access |
+| --- | --- |
+| `POST /api/auth/login` | Public |
+| `GET /` and the static app assets | Public |
+| `GET /api/uploads/*` | Public (photo files are served as static URLs) |
+| `GET /api/auth/me`, `GET /api/auth/users/employees` | Any signed-in user |
+| `/api/work-orders/*`, `/api/tasks/*`, `/api/photos/*` | Signed-in user; scope narrowed by role |
+| `POST /api/sheets/sync` | Manager only (`403` for employees) |
+
+### 6. When a token is rejected
+
+- No `Authorization` header, or one that doesn't start with `Bearer ` → `401 { "error":
+  "Authentication required" }`.
+- Bad signature, malformed token, or past the 7-day expiry → `401 { "error": "Invalid or
+  expired token" }`.
+- Valid token but insufficient role → `403`.
+
+On a `401` the client should drop the token and send the user back to `/login`; `403`
+means "signed in, not allowed" and should be shown as an error, not a logout. The app's
+`AuthProvider` currently handles this by clearing the token when the startup `/auth/me`
+check fails.
+
 ## Optional configuration
 
 | Variable | Purpose |
