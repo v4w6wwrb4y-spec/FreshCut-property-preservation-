@@ -21,6 +21,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/work-orders", workOrderRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/photos", photoRoutes);
+app.use("/api/sheets", sheetRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);
