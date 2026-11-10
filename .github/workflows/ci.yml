@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test (docker compose)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare compose env file
+        # docker-compose.base44.yml reads platform-delivered secrets from
+        # /run/base44/app.env. CI has no secret store, and every variable has a
+        # default (see .env.base44-defaults), so an empty file is enough.
+        run: |
+          sudo mkdir -p /run/base44
+          sudo touch /run/base44/app.env
+          sudo chmod 0644 /run/base44/app.env
+
+      - name: Install API dependencies and check server syntax
+        run: |
+          docker compose -f docker-compose.base44.yml run --rm --no-deps api \
+            sh -ec 'npm install && for f in server/*.js server/*/*.js; do node --check "$f"; done'
+
+      - name: Install client dependencies and build
+        run: |
+          docker compose -f docker-compose.base44.yml run --rm --no-deps web \
+            sh -ec 'npm install && npm run build'
+
+      - name: Start the stack
+        run: docker compose -f docker-compose.base44.yml up -d --build
+
+      - name: Wait for the app to serve
+        run: |
+          for i in $(seq 1 60); do
+            page=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/ || true)
+            api=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/auth/me || true)
+            if [ "$page" = "200" ] && [ "$api" = "401" ]; then
+              echo "Stack is up (web: $page, api: $api)"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Stack did not become ready in time"
+          docker compose -f docker-compose.base44.yml ps
+          exit 1
+
+      - name: Run package test scripts
+        run: |
+          docker compose -f docker-compose.base44.yml exec -T api sh -ec 'npm test --if-present'
+          docker compose -f docker-compose.base44.yml exec -T web sh -ec 'npm test --if-present'
+
+      - name: Smoke test the running API
+        run: |
+          set -euo pipefail
+          base=http://localhost:3000
+
+          login() {
+            curl -fsS -X POST "$base/api/auth/login" \
+              -H 'Content-Type: application/json' \
+              -d "{\"email\":\"$1\",\"password\":\"password123\"}" \
+              | sed -n 's/.*"token":"\([^"]*\)".*/\1/p'
+          }
+          code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+
+          mgr=$(login manager@freshcut.com)
+          emp=$(login mike@freshcut.com)
+          test -n "$mgr" && test -n "$emp" || { echo "login failed"; exit 1; }
+
+          test "$(code "$base/api/work-orders")" = "401"
+          test "$(code -H "Authorization: Bearer $mgr" "$base/api/work-orders")" = "200"
+          test "$(code -H "Authorization: Bearer $emp" "$base/api/work-orders")" = "200"
+          curl -fsS -H "Authorization: Bearer $mgr" "$base/api/sheets/status" | grep -q '"configured":false'
+          test "$(code -X POST -H "Authorization: Bearer $emp" "$base/api/sheets/sync")" = "403"
+
+          echo "Smoke tests passed"
+
+      - name: Show compose logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.base44.yml logs --no-color
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f docker-compose.base44.yml down -v
